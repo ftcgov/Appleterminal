@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>iOS-style Scan Box</title>
+<style>
+  :root{
+    --bg: rgba(8,10,15,0.85);
+    --card-bg: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+    --accent: rgba(100,210,255,0.95);
+    --glass: rgba(255,255,255,0.04);
+  }
+  html,body{height:100%;margin:0;font-family:-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui; background: linear-gradient(180deg,#0b1220,#07111a); color:#fff}
+  .center {
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+
+  /* Card */
+  .scan-card{
+    width:380px;
+    max-width:95%;
+    border-radius:20px;
+    padding:18px;
+    background:var(--card-bg);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(8px) saturate(120%);
+  }
+
+  .header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:12px;
+  }
+  .title{
+    font-weight:600;
+    font-size:16px;
+    letter-spacing:0.2px;
+    color:#fff;
+  }
+  .subtitle{
+    font-size:12px;
+    opacity:0.8;
+  }
+
+  /* form */
+  form .row{display:flex;flex-direction:column;margin-bottom:10px}
+  label{font-size:12px;opacity:0.85;margin-bottom:6px}
+  input[type="text"], input[type="email"], input[type="tel"]{
+    background:var(--glass);
+    border:1px solid rgba(255,255,255,0.06);
+    color:#fff;
+    padding:10px 12px;
+    border-radius:10px;
+    outline:none;
+    font-size:14px;
+  }
+  input::placeholder{color:rgba(255,255,255,0.45)}
+  .small{font-size:11px;opacity:0.75;margin-top:6px}
+
+  /* Start button */
+  .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+  button{
+    background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    border:1px solid rgba(255,255,255,0.08);
+    color:#fff;
+    padding:10px 14px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+    font-size:14px;
+    backdrop-filter: blur(6px);
+  }
+  button:active{transform:translateY(1px)}
+  button.primary{
+    background: linear-gradient(180deg, rgba(100,210,255,0.15), rgba(100,210,255,0.07));
+    border:1px solid rgba(100,210,255,0.18);
+    color:#eaffff;
+    box-shadow: 0 6px 18px rgba(100,210,255,0.06);
+  }
+  button:disabled{opacity:0.45;cursor:not-allowed}
+
+  /* scanner overlay */
+  .scanner-overlay{
+    position:relative;
+    margin-top:14px;
+    height:220px;
+    border-radius:12px;
+    overflow:hidden;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.15));
+    border: 1px solid rgba(255,255,255,0.03);
+    display:none;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .scanner-inner{
+    width:92%;
+    max-width:340px;
+    height:86%;
+    border-radius:10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+    border:1px solid rgba(255,255,255,0.03);
+    position:relative;
+    padding:14px;
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    align-items:center;
+  }
+
+  .scan-window{
+    flex:1;
+    width:100%;
+    border-radius:8px;
+    background:linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.5));
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:rgba(255,255,255,0.9);
+    font-weight:600;
+    letter-spacing:0.6px;
+  }
+
+  /* animated horizontal scanning line */
+  .scan-line{
+    position:absolute;
+    left:0;
+    right:0;
+    height:2px;
+    background: linear-gradient(90deg, rgba(255,255,255,0), rgba(100,210,255,0.9), rgba(255,255,255,0));
+    transform: translateY(-120%);
+    animation: sweep 2s linear infinite;
+    mix-blend-mode:screen;
+    box-shadow: 0 0 18px rgba(100,210,255,0.18);
+  }
+  @keyframes sweep{
+    0%{transform: translateY(-120%)}
+    50%{transform: translateY(120%)}
+    100%{transform: translateY(-120%)}
+  }
+
+  .progress{
+    width:92%;
+    height:8px;
+    background: rgba(255,255,255,0.05);
+    border-radius:6px;
+    overflow:hidden;
+    margin-top:8px;
+  }
+  .progress > i{
+    display:block;
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, rgba(100,210,255,0.25), rgba(100,210,255,0.95));
+    border-radius:6px;
+    transition:width 0.4s linear;
+  }
+
+  .status-row{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:8px;font-size:13px}
+  .status-text{opacity:0.9}
+  .timer{opacity:0.9;font-weight:700}
+
+  /* final message */
+  .result{
+    display:none;
+    margin-top:12px;
+    background: rgba(255,255,255,0.02);
+    border-radius:10px;
+    padding:12px;
+    border:1px solid rgba(255,255,255,0.04);
+    color:#e8fff9;
+    font-weight:600;
+    font-size:14px;
+    line-height:1.3;
+  }
+
+  .terminal-btn{
+    margin-top:10px;
+    display:flex;
+    gap:8px;
+    justify-content:flex-end;
+  }
+
+  /* small note */
+  .note{font-size:11px;opacity:0.7;margin-top:8px}
+</style>
+</head>
+<body>
+  <div class="center">
+    <div class="scan-card" role="region" aria-label="Scan box">
+      <div class="header">
+        <div>
+          <div class="title">Secure Details Scanner</div>
+          <div class="subtitle">Verify identity • iOS-style scan</div>
+        </div>
+        <div style="font-size:12px;opacity:0.85">v1.0</div>
+      </div>
+
+      <form id="scanForm" autocomplete="off">
+        <div class="row">
+          <label for="name">Full name</label>
+          <input id="name" name="name" type="text" placeholder="e.g. Jane Doe" required />
+        </div>
+
+        <div class="row">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" placeholder="you@example.com" required />
+        </div>
+
+        <div class="row">
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" placeholder="+1 555 555 5555" />
+        </div>
+
+        <div class="row">
+          <label for="ssn">SSN</label>
+          <input id="ssn" name="ssn" type="text" placeholder="***-**-****" />
+          <div class="small">Only used for verification during this scan.</div>
+        </div>
+
+        <div class="row">
+          <label for="ip">IP address</label>
+          <input id="ip" name="ip" type="text" placeholder="e.g. 192.168.0.1" />
+        </div>
+
+        <div class="actions">
+          <button type="button" id="cancelBtn">Cancel</button>
+          <button type="submit" class="primary" id="startBtn">Start Secure Scan</button>
+        </div>
+      </form>
+
+      <!-- scanner -->
+      <div class="scanner-overlay" id="scannerOverlay" aria-hidden="true">
+        <div class="scanner-inner">
+          <div class="scan-window" id="scanWindow">
+            <div id="scanLabel">Preparing secure scan…</div>
+            <div class="scan-line" id="scanLine" aria-hidden="true"></div>
+          </div>
+
+          <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <i id="progressBar"></i>
+          </div>
+
+          <div class="status-row">
+            <div class="status-text" id="statusText">Initializing</div>
+            <div class="timer" id="timerText">02:00</div>
+          </div>
+
+          <div class="result" id="resultBox" role="status"></div>
+
+          <div class="terminal-btn" id="terminalBtnWrap" style="display:none">
+            <button id="runTerminal" class="primary">Run Terminal Scan</button>
+          </div>
+
+          <div class="note">This interface simulates an advanced verification scan. For real security, use official tools.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+(function(){
+  const form = document.getElementById('scanForm');
+  const overlay = document.getElementById('scannerOverlay');
+  const progressBar = document.getElementById('progressBar');
+  const statusText = document.getElementById('statusText');
+  const timerText = document.getElementById('timerText');
+  const scanLabel = document.getElementById('scanLabel');
+  const resultBox = document.getElementById('resultBox');
+  const startBtn = document.getElementById('startBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const runTerminal = document.getElementById('runTerminal');
+  const terminalWrap = document.getElementById('terminalBtnWrap');
+
+  let timerInterval = null;
+  let progressInterval = null;
+  const SCAN_MS = 120000; // 2 minutes = 120000 ms
+  const TICK_MS = 1000; // update every second
+
+  function pad(n){ return n < 10 ? '0'+n : n }
+
+  function startScan(){
+    // disable form inputs
+    Array.from(form.querySelectorAll('input,button')).forEach(el=>el.disabled = true);
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden','false');
+    resultBox.style.display = 'none';
+    terminalWrap.style.display = 'none';
+    statusText.textContent = 'Scanning sensitive fields';
+    scanLabel.textContent = 'Secure scan in progress';
+    // progress & timer
+    let remaining = SCAN_MS;
+    const start = Date.now();
+    // set aria
+    const progressEl = document.querySelector('.progress');
+    progressEl.setAttribute('aria-valuenow','0');
+
+    // update progress every 400ms for smooth bar
+    progressInterval = setInterval(()=>{
+      const elapsed = Math.min(Date.now()-start, SCAN_MS);
+      const pct = Math.round((elapsed/SCAN_MS)*100);
+      progressBar.style.width = pct + '%';
+      progressEl.setAttribute('aria-valuenow', pct);
+    }, 400);
+
+    timerInterval = setInterval(()=>{
+      remaining -= TICK_MS;
+      if(remaining < 0) remaining = 0;
+      const mm = Math.floor(remaining / 60000);
+      const ss = Math.floor((remaining % 60000) / 1000);
+      timerText.textContent = pad(mm) + ':' + pad(ss);
+
+      // change status hints over time
+      const elapsed = Date.now() - start;
+      if(elapsed < SCAN_MS * 0.2) statusText.textContent = 'Analyzing format and signatures';
+      else if(elapsed < SCAN_MS * 0.5) statusText.textContent = 'Cross-checking records';
+      else if(elapsed < SCAN_MS * 0.8) statusText.textContent = 'Applying temporary protections';
+      else statusText.textContent = 'Finalizing secure layers';
+
+      if(remaining <= 0){
+        finishScan();
+      }
+    }, TICK_MS);
+  }
+
+  function finishScan(){
+    clearInterval(timerInterval);
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+    timerText.textContent = '00:00';
+    statusText.textContent = 'Complete';
+    scanLabel.textContent = 'Scan complete';
+    // show result message (well-written English)
+    resultBox.innerHTML = '<div><strong>Temporary security has been added to the details.</strong><div style="margin-top:6px; font-weight:500; font-size:13px; opacity:0.95">You can now run a terminal scan to perform a deeper verification.</div></div>';
+    resultBox.style.display = 'block';
+    terminalWrap.style.display = 'flex';
+    // enable the run terminal button (others remain disabled to prevent re-entry)
+    runTerminal.disabled = false;
+    // allow cancel to close overlay
+    cancelBtn.disabled = false;
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    // simple client-side validation
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    if(!name || !email){
+      alert('Please enter at least your name and email.');
+      return;
+    }
+    startScan();
+  });
+
+  cancelBtn.addEventListener('click', function(){
+    // stop everything and reset
+    clearInterval(timerInterval);
+    clearInterval(progressInterval);
+    overlay.style.display = 'none';
+    overlay.setAttribute('aria-hidden','true');
+    resultBox.style.display = 'none';
+    terminalWrap.style.display = 'none';
+    progressBar.style.width = '0%';
+    timerText.textContent = '02:00';
+    statusText.textContent = 'Initializing';
+    scanLabel.textContent = 'Preparing secure scan…';
+    Array.from(form.querySelectorAll('input,button')).forEach(el=>el.disabled = false);
+  });
+
+  runTerminal.addEventListener('click', function(){
+    // Simulated terminal scan action — this is a demo hook.
+    runTerminal.disabled = true;
+    runTerminal.textContent = 'Running...';
+    statusText.textContent = 'Terminal scan running';
+    setTimeout(()=>{
+      runTerminal.textContent = 'Run Terminal Scan';
+      alert('Terminal scan finished. No issues found in this simulation.');
+      runTerminal.disabled = false;
+      Array.from(form.querySelectorAll('input,button')).forEach(el=>el.disabled = false);
+      overlay.style.display = 'none';
+      overlay.setAttribute('aria-hidden','true');
+    }, 2500);
+  });
+
+  // keyboard: Enter triggers start when focused inside inputs
+  form.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && document.activeElement.tagName === 'INPUT'){
+      e.preventDefault();
+      startBtn.click();
+    }
+  });
+
+  // nice touch: fill IP field with local hint (no network calls)
+  const ipField = document.getElementById('ip');
+  ipField.placeholder = 'e.g. 203.0.113.5';
+})();
+</script>
+</body>
+</html>
